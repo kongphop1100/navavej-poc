@@ -1,0 +1,16 @@
+[project]
+name = "navavej"
+version = "0.1.0"
+description = "Demo project for Navavej health package recommendations"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi>=0.135.2",
+    "notebook>=7.5.5",
+    "numpy>=2.4.3",
+    "pandas>=2.2,<3",
+    "requests>=2.32.5",
+    "scikit-learn>=1.8.0",
+    "streamlit>=1.51.0",
+    "uvicorn>=0.42.0",
+]
