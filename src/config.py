@@ -9,6 +9,7 @@ MODELS_DIR = ROOT_DIR / "models"
 DEFAULT_MODEL_PATH = MODELS_DIR / "model_artifacts.pkl"
 DEFAULT_ENCOUNTERS_PATH = DATA_DIR / "merged_encounters.csv"
 DEFAULT_PACKAGES_PATH = DATA_DIR / "navavej_packages.csv"
+DEFAULT_SNAPSHOT_PATH = DATA_DIR / "training_snapshot.pkl"
 
 
 def resolve_path(env_name: str, default_path: Path) -> Path:

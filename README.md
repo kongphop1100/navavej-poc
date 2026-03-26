@@ -3,12 +3,17 @@
 Navavej Demo คือโปรเจคตัวอย่างสำหรับแนะนำแพ็กเกจสุขภาพเพิ่มเติมจากประวัติผู้ป่วย โดยใช้แนวคิด recommendation แบบผสมระหว่าง:
 
 - item-based collaborative filtering
-- heuristic transaction generation
+- deterministic rule-based transaction generation
 - business / medical guardrails
 
 โปรเจคนี้ถูกออกแบบมาเพื่อใช้เดโมแนวคิดของระบบ ไม่ใช่ production-ready clinical recommendation system โดยตรง
 
 ## What This Project Does
+
+Clinical-rule note:
+
+- The training snapshot now uses deterministic clinical-style package assignment instead of probabilistic package sampling.
+- Missing vitals in the snapshot fallback path are filled with deterministic midpoint values from condition-aware ranges.
 
 ระบบนี้มี flow หลักดังนี้:
 
@@ -269,13 +274,13 @@ pip install -e .
 ### 1. เปิด API
 
 ```powershell
-uvicorn main:app --reload
+uv run uvicorn main:app --reload
 ```
 
 หรือ:
 
 ```powershell
-python main.py
+uv run python main.py
 ```
 
 ค่า default:
@@ -286,7 +291,7 @@ python main.py
 ### 2. เปิด UI
 
 ```powershell
-streamlit run ui/app.py
+uv run streamlit run ui/app.py
 ```
 
 จากนั้นเปิด:
@@ -306,8 +311,8 @@ streamlit run ui/app.py
 
 จุดที่สำคัญมาก:
 
-- `uvicorn main:app --reload` ไม่ได้สร้าง `.pkl`
-- `python main.py` ก็ไม่ได้สร้าง `.pkl` เช่นกัน
+- `uv run uvicorn main:app --reload` ไม่ได้สร้าง `.pkl`
+- `uv run python main.py` ก็ไม่ได้สร้าง `.pkl` เช่นกัน
 - ทั้งสองคำสั่งมีหน้าที่เปิด API และโหลด `.pkl` ที่มีอยู่แล้ว
 
 ดังนั้น:
@@ -317,10 +322,15 @@ streamlit run ui/app.py
 
 ## How To Retrain The Model
 
+Additional note:
+
+- `src.train_job` builds from a snapshot that is generated with deterministic rules.
+- If you want to rebuild the snapshot as well, set `NAVAVEJ_REBUILD_SNAPSHOT=true` before running the training command.
+
 ถ้าต้องการสร้างหรืออัปเดต model artifact ใหม่:
 
 ```powershell
-python -m src.train_job
+uv run python -m src.train_job
 ```
 
 สิ่งที่ script นี้ทำ:
@@ -348,6 +358,11 @@ python -m src.train_job
 
 ## Environment Variables
 
+Additional environment variable:
+
+- `NAVAVEJ_SNAPSHOT_PATH`
+  Custom path for the generated training snapshot `.pkl`.
+
 ระบบรองรับ environment variables ต่อไปนี้:
 
 - `NAVAVEJ_MODEL_PATH`
@@ -365,7 +380,7 @@ python -m src.train_job
 
 ```powershell
 $env:NAVAVEJ_API_URL="http://localhost:8000/api/v1"
-streamlit run ui/app.py
+uv run streamlit run ui/app.py
 ```
 
 ## API Endpoints
@@ -384,7 +399,7 @@ endpoint หลักที่มีตอนนี้:
 มี script สำหรับประเมิน recommendation logic แบบ offline:
 
 ```powershell
-python strict_evaluation.py
+uv run python strict_evaluation.py
 ```
 
 สิ่งที่ script นี้วัดคร่าวๆ:
@@ -398,6 +413,12 @@ python strict_evaluation.py
 - ยังไม่ใช่ production-grade model validation
 
 ## Demo Assumptions and Limitations
+
+Current rule behavior:
+
+- Synthetic transactions are still generated, but now from deterministic clinical-style rules rather than random probabilities.
+- Missing vitals may still be synthesized when source data is absent, but the fallback is now a deterministic midpoint instead of a random value.
+- Medical and business rules remain hard-coded in source and should still be reviewed with domain experts before production use.
 
 จุดที่ควรทราบก่อนใช้เดโมหรืออธิบายต่อ stakeholder:
 
@@ -435,7 +456,7 @@ curl http://localhost:8000/health
 ให้รัน:
 
 ```powershell
-python -m src.train_job
+uv run python -m src.train_job
 ```
 
 แล้วค่อยเปิด API ใหม่

@@ -1,98 +1,140 @@
-from fastapi import FastAPI, HTTPException
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Query
 import uvicorn
 
 from src.inference_engine import UpsellRecommenderEngine
 
-app = FastAPI(title="Navavej Upsell API (The Brain)", version="1.0.0")
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+MAX_PATIENT_LIST = 200
+
+# ---------------------------------------------------------------------------
+# Application state
+# ---------------------------------------------------------------------------
+_engine_state: dict = {}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load the model once on startup; release on shutdown."""
+    logger.info("กำลังโหลดโมเดล AI (Model Artifacts)...")
+    try:
+        _engine_state["engine"] = UpsellRecommenderEngine()
+        logger.info("โหลด AI สำเร็จ พร้อมให้บริการ")
+    except Exception as exc:
+        logger.error("โหลดโมเดลล้มเหลว: %s", exc)
+        _engine_state["engine"] = None
+    yield
+    _engine_state.clear()
+    logger.info("Server shutdown: engine released")
+
+
+app = FastAPI(title="Navavej Upsell API (The Brain)", version="1.0.0", lifespan=lifespan)
+
+
+def _get_engine() -> UpsellRecommenderEngine:
+    engine = _engine_state.get("engine")
+    if not engine:
+        raise HTTPException(status_code=503, detail="AI Model is down!")
+    return engine
+
 
 # ==========================================
-# 1. โหลดโมเดล 1 ครั้งถ้วนตอนสตาร์ทเซิร์ฟเวอร์
+# Endpoints
 # ==========================================
-print("⏳ กำลังโหลดก้อนสมอง AI (Model Artifacts)...")
-try:
-    engine = UpsellRecommenderEngine()
-    print("✅ โหลด AI ทะลุเข้า RAM สำเร็จ พร้อมรับลูกค้า!")
-except Exception as e:
-    print(f"❌ เซิร์ฟเวอร์ล่ม: {e}")
-    engine = None
-
 
 @app.get("/health")
 def healthcheck():
+    engine = _engine_state.get("engine")
     return {
         "status": "ok" if engine else "degraded",
         "model_loaded": engine is not None,
     }
 
 
-# ==========================================
-# 2. Endpoint: ดึงรายชื่อคนไข้ (ส่งไปให้แอปหน้าบ้านทำ Dropdown)
-# ==========================================
 @app.get("/api/v1/patients")
 def get_patients():
-    if not engine:
-        raise HTTPException(status_code=503, detail="AI Model is down!")
-    
-    patient_ids = engine.txn_df['PATIENT'].unique().tolist()[:200]
-    
+    engine = _get_engine()
+
+    patient_ids = engine.patient_profiles.index.tolist()[:MAX_PATIENT_LIST]
+
     patient_list = []
     for pid in patient_ids:
         profile, _ = engine.get_patient_profile(pid)
         if profile:
-            g_th = 'ชาย' if profile['GENDER'] == 'M' else 'หญิง'
-            # ตัดชื่อโรคยาวๆ ให้สั้นลง
-            cond_txt = str(profile['CONDITIONS']).split(',')[0][:25] 
-            if cond_txt == 'nan' or cond_txt == 'None': cond_txt = 'ไม่มีโรค'
-            
-            label = f"ผู้ป่วย{g_th} {profile['AGE']} ปี ({cond_txt}) [{pid[:5]}]"
-            patient_list.append({"id": pid, "label": label})
-            
+            g_th = "ชาย" if profile["GENDER"] == "M" else "หญิง"
+            cond_txt = str(profile["CONDITIONS"]).split(",")[0][:25]
+            if cond_txt in ("nan", "None"):
+                cond_txt = "ไม่มีโรค"
+
+            customer_type = profile.get("CUSTOMER_TYPE", "existing")
+            suffix = "ลูกค้าใหม่" if customer_type == "new" else "ลูกค้าเก่า"
+            label = f"{suffix} {g_th} {profile['AGE']} ปี ({cond_txt}) [{pid[:5]}]"
+            patient_list.append({"id": pid, "label": label, "customer_type": customer_type})
+
     return {"patients": patient_list}
 
 
-# ==========================================
-# 3. Endpoint: แม่เหล็กดูดเงิน (ระบบแนะนำ Upsell)
-# ==========================================
 @app.get("/api/v1/recommend")
-def get_recommendation(patient_id: str):
-    if not engine:
-        raise HTTPException(status_code=503, detail="AI Model is down!")
-        
+def get_recommendation(
+    patient_id: str = Query(..., min_length=1, max_length=100, strip_whitespace=True),
+):
+    engine = _get_engine()
+
     profile, purchased_history = engine.get_patient_profile(patient_id)
     if not profile:
         raise HTTPException(status_code=404, detail="ค้นหาประวัติคนไข้ไม่พบ (ไม่เคยมาโรงพยาบาล?)")
-        
-    # วิ่งทะลุ 3 Layers ของเรา
-    top_3 = engine.recommend(patient_id)
-    
-    # ห่อข้อมูลส่งกลับเป็น JSON (ต้องแปลง type ของ NumPy เป็น Native Python)
+
+    top_3 = engine.recommend_with_explanations(patient_id)
+
     recommendations = []
-    for pkg_id, score in top_3.items():
+    for rec in top_3:
+        pkg_id = rec["package_id"]
+        score = rec["final_score"]
         if score > -99:
-            package_matches = engine.packages_df[engine.packages_df['code'] == pkg_id]
-            pkg_name = str(package_matches['name'].values[0]) if not package_matches.empty else str(pkg_id)
-            recommendations.append({
-                "package_id": str(pkg_id),
-                "package_name": pkg_name,
-                "confidence_score": float(score)
-            })
-            
-    raw_cond = str(profile['CONDITIONS'])
-    cond_display = raw_cond[:60] + "..." if raw_cond.lower() != 'nan' else 'ไม่มีโรคประจำตัว'
+            package_matches = engine.packages_df[engine.packages_df["code"] == pkg_id]
+            pkg_name = str(package_matches["name"].values[0]) if not package_matches.empty else str(pkg_id)
+            recommendations.append(
+                {
+                    "package_id": str(pkg_id),
+                    "package_name": pkg_name,
+                    "confidence_score": float(score),
+                    "cf_score": float(rec["cf_score"]),
+                    "profile_score": float(rec["profile_score"]),
+                    "recommendation_mode": str(rec["recommendation_mode"]),
+                    "reason": str(rec["reason"]),
+                }
+            )
+
+    raw_cond = str(profile["CONDITIONS"])
+    cond_display = raw_cond[:60] + "..." if raw_cond.lower() != "nan" else "ไม่มีโรคประจำตัว"
 
     return {
         "status": "success",
         "patient": {
             "id": str(patient_id),
-            "age": int(profile['AGE']),
-            "gender": str(profile['GENDER']),
+            "age": int(profile["AGE"]),
+            "gender": str(profile["GENDER"]),
             "conditions": cond_display,
-            "vitals": profile.get("VITALS", {})
+            "vitals": profile.get("VITALS", {}),
+            "customer_type": str(profile.get("CUSTOMER_TYPE", "existing")),
         },
         "purchased_packages": [str(p) for p in purchased_history],
-        "recommendations": recommendations
+        "recommendations": recommendations,
     }
 
+
 if __name__ == "__main__":
-    # เปิดเซิร์ฟเวอร์ทิ้งไว้ให้รันเบื้องหลัง (พอร์ต 8000)
     uvicorn.run("src.api:app", host="0.0.0.0", port=8000, reload=True)
