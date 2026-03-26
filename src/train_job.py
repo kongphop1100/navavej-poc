@@ -15,6 +15,17 @@ from src.config import (
     DEFAULT_PACKAGES_PATH,
     resolve_path,
 )
+from src.simulation_rules import (
+    clamp_probability,
+    compute_chronic_probability,
+    compute_general_screening_probability,
+    compute_kid_package_probability,
+    compute_male_health_probability,
+    compute_maternity_probability,
+    compute_wellness_probability,
+    compute_women_health_probability,
+    safe_float,
+)
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -58,7 +69,6 @@ def normalize_range(value, min_val, max_val):
 
 def has_any_keyword(text, keywords):
     return 1.0 if any(keyword in text for keyword in keywords) else 0.0
-
 
 def build_patient_features(txn_df):
     patient_rows = []
@@ -134,65 +144,6 @@ def run_etl_and_training():
             
         bought_items = set()
         
-        # 1. Maternity & Female Health
-        if gender == 'F':
-            if 18 <= age <= 45 and ('pregnancy' in conditions or 'prenatal' in conditions):
-                if np.random.rand() > 0.1: bought_items.add('NVV-PK-0007') # คลอดธรรมชาติ
-                if np.random.rand() > 0.3: bought_items.add('NVV-PK-0061') # ผ่าตัดคลอด
-            if 15 <= age <= 45:
-                if np.random.rand() > 0.7: bought_items.add('NVV-PK-0059') # HPV Vax 9 สายพันธุ์
-            if age >= 30:
-                if np.random.rand() > 0.6: bought_items.add('NVV-PK-0035') # มะเร็งปากมดลูก
-                if np.random.rand() > 0.8: bought_items.add('NVV-PK-0036') # Longevist F
-            if age >= 35:
-                if np.random.rand() > 0.4: bought_items.add('NVV-PK-0015') # Pro Diamond F
-            if age >= 25:
-                if np.random.rand() > 0.9: bought_items.add('NVV-PK-0028') # ตกแต่งเลเบีย
-
-        # 2. Male Health
-        if gender == 'M':
-            if age >= 40:
-                if np.random.rand() > 0.5: bought_items.add('NVV-PK-0014') # Pro Diamond M
-            if 40 <= age <= 55:
-                if np.random.rand() > 0.7: bought_items.add('NVV-PK-0040') # Hormone M
-                
-        # 3. Kids & Teens
-        if age <= 14:
-            if np.random.rand() > 0.3: bought_items.add('NVV-PK-0092') # เด็ก Play and Learn 1
-            if np.random.rand() > 0.5: bought_items.add('NVV-PK-0084') # ทันตกรรมเด็ก
-            if np.random.rand() > 0.8: bought_items.add('NVV-PK-0082') # COVID เด็ก
-            
-        # 4. Seniors & Neurology
-        if age >= 55:
-            if np.random.rand() > 0.6: bought_items.add('NVV-PK-0017') # Dementia
-            if np.random.rand() > 0.5: bought_items.add('NVV-PK-0018') # Stroke Screening
-            if np.random.rand() > 0.7: bought_items.add('NVV-PK-0003') # MRI+MRA Brain
-            
-        # 5. Chronic & Internal Med
-        if age >= 50 or 'diabetes' in conditions or 'hypertension' in conditions or 'hyperlipidemia' in conditions:
-            if np.random.rand() > 0.3: bought_items.add('NVV-PK-0002') # ตรวจสุขภาพ 
-            if np.random.rand() > 0.5: bought_items.add('NVV-PK-0078') # Echo หัวใจ
-            if np.random.rand() > 0.6: bought_items.add('NVV-PK-0081') # Echocardiogram 2569
-            if np.random.rand() > 0.7: bought_items.add('NVV-PK-0064') # มะเร็งลำไส้ CEA
-            
-        # 6. Wellness & Anti-Aging (IV Drips)
-        if 25 <= age <= 60:
-            if np.random.rand() > 0.8: bought_items.add('NVV-PK-0046') # Liver Detox
-            if np.random.rand() > 0.8: bought_items.add('NVV-PK-0047') # Immune Booster
-            if np.random.rand() > 0.85: bought_items.add('NVV-PK-0083') # Brain Booster
-            if np.random.rand() > 0.85: bought_items.add('NVV-PK-0062') # High C
-            if np.random.rand() > 0.9: bought_items.add('NVV-PK-0048') # Mitochondria
-            
-        # 7. General & Dental (ทุกเพศทุกวัย)
-        if age >= 20:
-            if np.random.rand() > 0.7: bought_items.add('NVV-PK-0031') # ขูดหินปูน
-            if np.random.rand() > 0.85: bought_items.add('NVV-PK-0044') # ฟอกสีฟัน
-            if np.random.rand() > 0.8: bought_items.add('NVV-PK-0004') # Chest X-ray
-            if np.random.rand() > 0.9: bought_items.add('NVV-PK-0001') # Sleep Test
-            if np.random.rand() > 0.9: bought_items.add('NVV-PK-0098') # HD Mall Sleep Test
-            if np.random.rand() > 0.85: bought_items.add('NVV-PK-0072') # ไวรัสตับอักเสบบี
-            if np.random.rand() > 0.85: bought_items.add('NVV-PK-0045') # อีสุกอีใส
-        
         # ดึงค่า Vitals/Labs จาก "ทุกประวัติ" ของคนไข้คนนี้ (เผื่อแวะมาหลายรอบแล้วบางรอบไม่ได้เจาะเลือด)
         patient_records = encounters_df[encounters_df['PATIENT'] == patient_id]
         
@@ -226,7 +177,79 @@ def run_etl_and_training():
             'HDL': safe_get('high_density_lipoprotein_cholesterol', 30.0, 80.0),
             'LDL': safe_get('low_density_lipoprotein_cholesterol', 60.0, 180.0),
         }
+
+        bmi = safe_float(vitals['BMI'], 25.0)
+        glucose = safe_float(vitals['Glucose'], 100.0)
+        sys_bp = safe_float(vitals['SysBP'], 120.0)
+        dia_bp = safe_float(vitals['DiaBP'], 80.0)
+        cholesterol = safe_float(vitals['Cholesterol'], 180.0)
+        hba1c = safe_float(vitals['HbA1c'], 5.6)
+        egfr = safe_float(vitals['eGFR'], 90.0)
+        triglycerides = safe_float(vitals['Triglycerides'], 150.0)
+        ldl = safe_float(vitals['LDL'], 110.0)
         
+        # 1. Maternity & Female Health
+        if gender == 'F':
+            maternity_prob = compute_maternity_probability(age, conditions)
+            if 18 <= age <= 45 and ('pregnancy' in conditions or 'prenatal' in conditions):
+                if np.random.rand() < maternity_prob: bought_items.add('NVV-PK-0007')
+                if np.random.rand() < max(maternity_prob - 0.10, 0.15): bought_items.add('NVV-PK-0061')
+
+            women_health_prob = compute_women_health_probability(age, conditions, bmi, glucose)
+            if 15 <= age <= 45 and np.random.rand() < max(women_health_prob - 0.08, 0.12): bought_items.add('NVV-PK-0059')
+            if age >= 30 and np.random.rand() < women_health_prob: bought_items.add('NVV-PK-0035')
+            if age >= 30 and np.random.rand() < max(women_health_prob - 0.18, 0.08): bought_items.add('NVV-PK-0036')
+            if age >= 35 and np.random.rand() < max(women_health_prob + 0.08, 0.25): bought_items.add('NVV-PK-0015')
+            if age >= 25 and np.random.rand() < 0.05: bought_items.add('NVV-PK-0028')
+
+        # 2. Male Health
+        if gender == 'M':
+            male_health_prob = compute_male_health_probability(age, conditions, sys_bp, cholesterol)
+            if age >= 40 and np.random.rand() < male_health_prob: bought_items.add('NVV-PK-0014')
+            if 40 <= age <= 55 and np.random.rand() < max(male_health_prob - 0.10, 0.10): bought_items.add('NVV-PK-0040')
+
+        # 3. Kids & Teens
+        kid_prob = compute_kid_package_probability(age, bmi, glucose)
+        if age <= 14:
+            if np.random.rand() < kid_prob: bought_items.add('NVV-PK-0092')
+            if np.random.rand() < max(kid_prob - 0.12, 0.12): bought_items.add('NVV-PK-0084')
+            if np.random.rand() < max(kid_prob - 0.28, 0.04): bought_items.add('NVV-PK-0082')
+
+        # 4. Seniors & Neurology
+        if age >= 55:
+            senior_prob = clamp_probability(0.24 + (0.10 if age >= 65 else 0.0) + (0.05 if 'stroke' in conditions else 0.0))
+            if np.random.rand() < senior_prob: bought_items.add('NVV-PK-0017')
+            if np.random.rand() < max(senior_prob - 0.04, 0.12): bought_items.add('NVV-PK-0018')
+            if np.random.rand() < max(senior_prob - 0.10, 0.08): bought_items.add('NVV-PK-0003')
+
+        # 5. Chronic & Internal Med
+        chronic_prob = compute_chronic_probability(age, conditions, bmi, glucose, sys_bp, dia_bp, hba1c, ldl, egfr)
+        if age >= 50 or 'diabetes' in conditions or 'hypertension' in conditions or 'hyperlipidemia' in conditions:
+            if np.random.rand() < chronic_prob: bought_items.add('NVV-PK-0002')
+            if np.random.rand() < max(chronic_prob - 0.08, 0.12): bought_items.add('NVV-PK-0078')
+            if np.random.rand() < max(chronic_prob - 0.04, 0.14): bought_items.add('NVV-PK-0081')
+            if np.random.rand() < max(chronic_prob - 0.14, 0.08): bought_items.add('NVV-PK-0064')
+
+        # 6. Wellness & Anti-Aging (IV Drips)
+        wellness_prob = compute_wellness_probability(age, bmi, glucose, cholesterol, triglycerides)
+        if 25 <= age <= 60:
+            if np.random.rand() < wellness_prob: bought_items.add('NVV-PK-0046')
+            if np.random.rand() < max(wellness_prob - 0.01, 0.08): bought_items.add('NVV-PK-0047')
+            if np.random.rand() < max(wellness_prob - 0.05, 0.05): bought_items.add('NVV-PK-0083')
+            if np.random.rand() < max(wellness_prob - 0.04, 0.05): bought_items.add('NVV-PK-0062')
+            if np.random.rand() < max(wellness_prob - 0.08, 0.03): bought_items.add('NVV-PK-0048')
+
+        # 7. General & Dental (ทุกเพศทุกวัย)
+        general_prob = compute_general_screening_probability(age, bmi, sys_bp, cholesterol)
+        if age >= 20:
+            if np.random.rand() < max(general_prob + 0.10, 0.20): bought_items.add('NVV-PK-0031')
+            if np.random.rand() < max(general_prob - 0.02, 0.10): bought_items.add('NVV-PK-0044')
+            if np.random.rand() < general_prob: bought_items.add('NVV-PK-0004')
+            if np.random.rand() < max(general_prob - 0.08, 0.06): bought_items.add('NVV-PK-0001')
+            if np.random.rand() < max(general_prob - 0.12, 0.03): bought_items.add('NVV-PK-0098')
+            if np.random.rand() < max(general_prob - 0.06, 0.05): bought_items.add('NVV-PK-0072')
+            if np.random.rand() < max(general_prob - 0.07, 0.05): bought_items.add('NVV-PK-0045')
+
         for pkg in bought_items:
             transactions.append({
                 'PATIENT': patient_id, 'PACKAGE': pkg, 

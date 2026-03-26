@@ -9,6 +9,16 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import train_test_split
 
 from src.config import DEFAULT_ENCOUNTERS_PATH, resolve_path
+from src.simulation_rules import (
+    clamp_probability,
+    compute_chronic_probability,
+    compute_general_screening_probability,
+    compute_kid_package_probability,
+    compute_male_health_probability,
+    compute_maternity_probability,
+    compute_wellness_probability,
+    compute_women_health_probability,
+)
 
 # บังคับคอนโซล Windows ให้พิมพ์ Emoji ออกมาได้โดยไม่ error cp1252
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -111,23 +121,6 @@ for _, row in patients_df.iterrows():
     except: age = 35
         
     bought_items = set()
-    
-    if gender == 'F' and 18 <= age <= 45 and ('pregnancy' in conditions or 'prenatal' in conditions):
-        if np.random.rand() > 0.2: bought_items.add('NVV-PK-0007')
-        if np.random.rand() > 0.4: bought_items.add('NVV-PK-0092')
-            
-    if gender == 'M' and age >= 40:
-        if np.random.rand() > 0.5: bought_items.add('NVV-PK-0014')
-    if gender == 'F' and age >= 35:
-        if np.random.rand() > 0.4: bought_items.add('NVV-PK-0015')
-            
-    if age >= 50 or 'diabetes' in conditions or 'hypertension' in conditions:
-        if np.random.rand() > 0.3: bought_items.add('NVV-PK-0002')
-        if np.random.rand() > 0.4: bought_items.add('NVV-PK-0046')
-        if np.random.rand() > 0.7: bought_items.add('NVV-PK-0003')
-
-    if np.random.rand() > 0.6: bought_items.add('NVV-PK-0044')
-    if np.random.rand() > 0.8: bought_items.add('NVV-PK-0001')
 
     vitals = {
         'BMI': round(np.random.uniform(18.5, 29.9), 1),
@@ -145,6 +138,49 @@ for _, row in patients_df.iterrows():
         'HDL': round(np.random.uniform(30.0, 80.0), 1),
         'LDL': round(np.random.uniform(60.0, 180.0), 1),
     }
+
+    bmi = float(vitals['BMI'])
+    glucose = float(vitals['Glucose'])
+    sys_bp = float(vitals['SysBP'])
+    dia_bp = float(vitals['DiaBP'])
+    cholesterol = float(vitals['Cholesterol'])
+    hba1c = float(vitals['HbA1c'])
+    egfr = float(vitals['eGFR'])
+    triglycerides = float(vitals['Triglycerides'])
+    ldl = float(vitals['LDL'])
+
+    if gender == 'F':
+        maternity_prob = compute_maternity_probability(age, conditions)
+        if 18 <= age <= 45 and ('pregnancy' in conditions or 'prenatal' in conditions):
+            if np.random.rand() < maternity_prob: bought_items.add('NVV-PK-0007')
+            if np.random.rand() < max(maternity_prob - 0.10, 0.15): bought_items.add('NVV-PK-0092')
+
+        women_health_prob = compute_women_health_probability(age, conditions, bmi, glucose)
+        if age >= 35 and np.random.rand() < max(women_health_prob + 0.08, 0.25):
+            bought_items.add('NVV-PK-0015')
+
+    if gender == 'M':
+        male_health_prob = compute_male_health_probability(age, conditions, sys_bp, cholesterol)
+        if age >= 40 and np.random.rand() < male_health_prob:
+            bought_items.add('NVV-PK-0014')
+
+    kid_prob = compute_kid_package_probability(age, bmi, glucose)
+    if age <= 14 and np.random.rand() < kid_prob:
+        bought_items.add('NVV-PK-0092')
+
+    chronic_prob = compute_chronic_probability(age, conditions, bmi, glucose, sys_bp, dia_bp, hba1c, ldl, egfr)
+    if age >= 50 or 'diabetes' in conditions or 'hypertension' in conditions:
+        if np.random.rand() < chronic_prob: bought_items.add('NVV-PK-0002')
+        if np.random.rand() < max(chronic_prob - 0.04, 0.14): bought_items.add('NVV-PK-0046')
+        if np.random.rand() < max(chronic_prob - 0.10, 0.08): bought_items.add('NVV-PK-0003')
+
+    wellness_prob = compute_wellness_probability(age, bmi, glucose, cholesterol, triglycerides)
+    if np.random.rand() < max(wellness_prob - 0.02, 0.10):
+        bought_items.add('NVV-PK-0044')
+
+    general_prob = compute_general_screening_probability(age, bmi, sys_bp, cholesterol)
+    if age >= 20 and np.random.rand() < max(general_prob - 0.08, 0.06):
+        bought_items.add('NVV-PK-0001')
     
     for pkg in bought_items:
         transactions.append({
