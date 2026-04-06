@@ -13,7 +13,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import streamlit as st
-from google import genai
 from pydantic import BaseModel, Field
 from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
@@ -175,7 +174,12 @@ def get_gemini_client():
             pass
     if not api_key:
         return None
-    return genai.Client(api_key=api_key)
+    try:
+        from google import genai
+        return genai.Client(api_key=api_key)
+    except ImportError:
+        st.warning("google-genai not installed — Gemini rerank disabled")
+        return None
 
 
 # ============================================================
