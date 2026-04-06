@@ -1,0 +1,225 @@
+{
+  "need_dims": [
+    "cardiac",
+    "diabetes",
+    "cancer",
+    "women_health",
+    "neuro",
+    "hormone",
+    "bone_joint",
+    "respiratory",
+    "gi",
+    "general"
+  ],
+  "main_parents": {
+    "19068": "health_checkup",
+    "19121": "longevity_pran",
+    "19003": "medical_cert"
+  },
+  "specialized_parents": {
+    "18860": "cardiac",
+    "19049": "cardiac_spatch",
+    "19102": "cardiac_arrhythmia",
+    "19009": "diabetes",
+    "18905": "stroke",
+    "19124": "brain_mri",
+    "18903": "thyroid",
+    "18964": "cervical_cancer",
+    "19017": "breast_cancer",
+    "19002": "cancer_full",
+    "19006": "cancer_small",
+    "18895": "lung_function",
+    "18922": "bone_density",
+    "18900": "allergy_blood",
+    "19016": "allergy_skin",
+    "19115": "gi_endoscopy",
+    "18994": "weight_mgmt",
+    "18894": "pre_marital"
+  },
+  "vaccine_parents": {
+    "18865": "vaccine_immune",
+    "19037": "vaccine_adult",
+    "18851": "vaccine_pneumonia",
+    "18850": "vaccine_hpv_child",
+    "18947": "vaccine_hpv_adult",
+    "19073": "vaccine_ipd15",
+    "19079": "vaccine_ipd20"
+  },
+  "checkup_tiers": {
+    "standard": {
+      "sub_id": 759,
+      "name": "Standard",
+      "price": 2900,
+      "gender": "all",
+      "age_min": 0
+    },
+    "gold": {
+      "sub_id": 760,
+      "name": "Gold (20-35)",
+      "price": 6900,
+      "gender": "all",
+      "age_min": 20
+    },
+    "platinum_m": {
+      "sub_id": 761,
+      "name": "Platinum Male",
+      "price": 10900,
+      "gender": "M",
+      "age_min": 35
+    },
+    "platinum_f": {
+      "sub_id": 762,
+      "name": "Platinum Female",
+      "price": 16900,
+      "gender": "F",
+      "age_min": 35
+    },
+    "diamond_m": {
+      "sub_id": 763,
+      "name": "Diamond Male",
+      "price": 17900,
+      "gender": "M",
+      "age_min": 40
+    },
+    "diamond_f": {
+      "sub_id": 764,
+      "name": "Diamond Female",
+      "price": 22900,
+      "gender": "F",
+      "age_min": 40
+    }
+  },
+  "package_coverage": {
+    "18860": {
+      "cardiac": 1.0,
+      "diabetes": 0.3,
+      "general": 0.3
+    },
+    "19049": {
+      "cardiac": 0.9,
+      "general": 0.2
+    },
+    "19102": {
+      "cardiac": 0.8,
+      "general": 0.2
+    },
+    "19009": {
+      "diabetes": 1.0,
+      "general": 0.3
+    },
+    "18905": {
+      "neuro": 1.0,
+      "cardiac": 0.4,
+      "diabetes": 0.3
+    },
+    "19124": {
+      "neuro": 0.9,
+      "general": 0.2
+    },
+    "18903": {
+      "hormone": 0.8,
+      "general": 0.3
+    },
+    "18964": {
+      "cancer": 0.7,
+      "women_health": 1.0
+    },
+    "19017": {
+      "cancer": 0.7,
+      "women_health": 1.0
+    },
+    "19002": {
+      "cancer": 1.0,
+      "gi": 0.3,
+      "general": 0.2
+    },
+    "19006": {
+      "cancer": 0.8,
+      "general": 0.2
+    },
+    "18895": {
+      "respiratory": 1.0,
+      "general": 0.2
+    },
+    "18922": {
+      "bone_joint": 1.0,
+      "general": 0.2
+    },
+    "18900": {
+      "respiratory": 0.4,
+      "general": 0.5
+    },
+    "19016": {
+      "respiratory": 0.4,
+      "general": 0.5
+    },
+    "19115": {
+      "gi": 1.0,
+      "cancer": 0.4
+    },
+    "18994": {
+      "diabetes": 0.5,
+      "cardiac": 0.3,
+      "general": 0.4
+    },
+    "18894": {
+      "general": 0.7,
+      "hormone": 0.3
+    },
+    "18865": {
+      "respiratory": 0.5,
+      "general": 0.6
+    },
+    "19037": {
+      "respiratory": 0.4,
+      "general": 0.6
+    },
+    "18851": {
+      "respiratory": 0.8,
+      "general": 0.3
+    },
+    "18850": {
+      "women_health": 0.8,
+      "cancer": 0.6
+    },
+    "18947": {
+      "women_health": 0.8,
+      "cancer": 0.6
+    },
+    "19073": {
+      "respiratory": 0.7,
+      "general": 0.4
+    },
+    "19079": {
+      "respiratory": 0.7,
+      "general": 0.4
+    }
+  },
+  "need_reasons_th": {
+    "cardiac": "มีความเสี่ยงโรคหัวใจ/หลอดเลือด",
+    "diabetes": "มีความเสี่ยงเบาหวาน/เมตาบอลิก",
+    "cancer": "มีความเสี่ยงมะเร็ง",
+    "women_health": "ควรตรวจคัดกรองสุขภาพสตรี",
+    "neuro": "มีความเสี่ยงโรคหลอดเลือดสมอง",
+    "hormone": "ควรตรวจระดับฮอร์โมน",
+    "bone_joint": "มีความเสี่ยงกระดูกพรุน",
+    "respiratory": "มีความเสี่ยงโรคทางเดินหายใจ/ปอด",
+    "gi": "มีความเสี่ยงโรคทางเดินอาหาร/ตับ",
+    "general": "ควรตรวจสุขภาพทั่วไปประจำปี"
+  },
+  "feature_reasons_th": {
+    "has_hypertension": "มีความดันโลหิตสูง",
+    "has_diabetes": "เป็นเบาหวาน",
+    "has_high_cholesterol": "ไขมันในเลือดสูง",
+    "has_heart_disease": "มีโรคหัวใจ",
+    "has_cancer_history": "มีประวัติมะเร็ง",
+    "has_obesity": "มีภาวะอ้วน",
+    "has_stroke": "มีประวัติโรคหลอดเลือดสมอง",
+    "family_heart": "ครอบครัวมีประวัติโรคหัวใจ",
+    "family_diabetes": "ครอบครัวมีประวัติเบาหวาน",
+    "family_cancer": "ครอบครัวมีประวัติมะเร็ง",
+    "family_stroke": "ครอบครัวมีประวัติโรคหลอดเลือดสมอง",
+    "family_hypertension": "ครอบครัวมีประวัติความดันสูง",
+    "family_obesity": "ครอบครัวมีภาวะอ้วน"
+  }
+}
