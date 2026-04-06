@@ -31,7 +31,6 @@ htmlcov/
 .cache/
 
 # Jupyter
-notebooks/
 .ipynb_checkpoints/
 
 # Streamlit
@@ -56,3 +55,12 @@ Thumbs.db
 .uv-cache/
 mlruns/
 mlflow.db
+
+# Data (allow specific files needed for app)
+data/
+!data/training_table_gemini_labels.csv
+!data/gemini_realtime_progress.json
+!data/navavej_packages_scraped.csv
+#claude
+.claude/
+notebooks/
